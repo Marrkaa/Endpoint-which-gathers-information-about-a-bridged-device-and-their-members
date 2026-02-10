@@ -1,13 +1,15 @@
 {
-	"services/example": {
+	"services/bridge_device": {
 		"description": "Bridge device info permissions",
 		"read": {
 			"api": [
-				"/bridge_device/*"
+				"/bridge_device/*",
+				"/bridge_config/*"
 			]
 		},
 		"write": {
 			"api": [
+				"/bridge_device/*",
 				"/bridge_config/*"
 			]
 		}

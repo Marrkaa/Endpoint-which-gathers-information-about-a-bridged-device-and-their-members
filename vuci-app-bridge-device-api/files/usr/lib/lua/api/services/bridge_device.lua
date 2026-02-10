@@ -53,4 +53,32 @@ function Service:GET_TYPE_bridge()
 	})
 end
 
+function Service:POST_TYPE_set()
+	local data = self.arguments.data
+	local name = data.name	
+
+	if not name then
+		self:add_error(400, "Bridge name not specified", "name")
+		return self:ResponseError()
+	end
+
+	if data.mtu then
+		os.execute(string.format("ip link set dev %s mtu %d", name, tonumber(data.mtu)))
+	end
+
+	if data.macaddr then
+		os.execute(string.format("ip link set dev %s address %s", name, data.macaddr))
+	end
+
+	if data.new_name then
+		os.execute(string.format("ip link set dev %s name %s", name, data.new_name))
+	end
+
+	return self:ResponseOK(
+	{
+		message = "Bridge parameters updated (runtime)",
+		bridge = name
+	})
+end
+
 return Service
