@@ -1,0 +1,5 @@
+[
+	{
+		"/bridge_device/{service_group}/{sid}": "services/bridge_device"
+	}
+]
