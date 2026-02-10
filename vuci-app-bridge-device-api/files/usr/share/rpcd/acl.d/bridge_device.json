@@ -5,6 +5,11 @@
 			"api": [
 				"/bridge_device/*"
 			]
+		},
+		"write": {
+			"api": [
+				"/bridge_config/*"
+			]
 		}
 	}
 }
