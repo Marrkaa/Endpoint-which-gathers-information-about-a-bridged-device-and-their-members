@@ -1,5 +1,6 @@
 local FunctionService = require("api/FunctionService")
 local ubus = require("ubus")
+local uci = require("uci").cursor()
 
 local Service = FunctionService:new()
 
@@ -53,32 +54,68 @@ function Service:GET_TYPE_bridge()
 	})
 end
 
-function Service:POST_TYPE_set()
+function Service:SetBridge()
+
 	local data = self.arguments.data
-	local name = data.name	
+	local name = data.name
 
 	if not name then
-		self:add_error(400, "Bridge name not specified", "name")
-		return self:ResponseError()
+	self:add_error(400, "Bridge name not specified", "name")
+	return
+	end
+
+	if not uci:get("network", name) then
+		self:add_error(404, "Bridge device not found in UCI config", "name")
+		return
 	end
 
 	if data.mtu then
-		os.execute(string.format("ip link set dev %s mtu %d", name, tonumber(data.mtu)))
+		uci:set("network", name, "mtu", tostring(data.mtu))
 	end
 
 	if data.macaddr then
-		os.execute(string.format("ip link set dev %s address %s", name, data.macaddr))
+		uci:set("network", name, "macaddr", data.macaddr)
 	end
 
 	if data.new_name then
-		os.execute(string.format("ip link set dev %s name %s", name, data.new_name))
+		uci:set("network", name, "name", data.new_name)
 	end
+
+	uci:commit("network")
+
+	--os.execute("/etc/init.d/network restart")
 
 	return self:ResponseOK(
 	{
-		message = "Bridge parameters updated (runtime)",
-		bridge = name
+		message = "Bridge configuration updated successfully"
 	})
 end
+
+
+local set_action = Service:action("set", Service.SetBridge)
+
+local name = set_action:option("name")
+name.require = true
+name.maxlength = 32
+
+local mtu = set_action:option("mtu")
+function mtu:validate(value)
+	local num = tonumber(value)
+	if not num or num < 576 or num > 9000 then
+		return false, "Invalid MTU value"
+	end
+	return true
+end
+
+local macaddr = set_action:option("macaddr")
+function macaddr:validate(value)
+	if not string.match(value, "^%x%x:%x%x:%x%x:%x%x:%x%x:%x%x$") then
+		return false, "Invalid MAC address format"
+	end
+	return true
+end
+
+local new_name = set_action:option("new_name")
+new_name.maxlength = 32
 
 return Service
