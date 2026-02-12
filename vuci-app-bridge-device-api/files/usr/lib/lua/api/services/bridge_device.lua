@@ -58,10 +58,11 @@ function Service:SetBridge()
 
 	local data = self.arguments.data
 	local name = data.name
+	local namelan = "lan"
 
 	if not name then
-	self:add_error(400, "Bridge name not specified", "name")
-	return
+		self:add_error(400, "Bridge name not specified", "name")
+		return
 	end
 
 	if not uci:get("network", name) then
@@ -79,11 +80,20 @@ function Service:SetBridge()
 
 	if data.new_name then
 		uci:set("network", name, "name", data.new_name)
+		-- Change the lan config so it would point to the new name as well
+		uci:set("network", namelan, "device", data.new_name)
 	end
 
 	uci:commit("network")
 
-	--os.execute("/etc/init.d/network restart")
+	local conn = ubus.connect()
+	if not conn then
+		self:add_error(500, "Can not connect to UBUS")
+		conn:close()
+	end
+
+	conn:call("network", "reload", {});
+	conn:close()
 
 	return self:ResponseOK(
 	{
