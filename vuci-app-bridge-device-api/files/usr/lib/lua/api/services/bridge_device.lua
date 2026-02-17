@@ -111,7 +111,7 @@ name.maxlength = 32
 local mtu = set_action:option("mtu")
 function mtu:validate(value)
 	local num = tonumber(value)
-	if not num or num < 576 or num > 9000 then
+	if not num or num < 500 or num > 9000 then
 		return false, "Invalid MTU value"
 	end
 	return true
