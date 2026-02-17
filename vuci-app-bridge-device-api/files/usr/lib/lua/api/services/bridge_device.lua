@@ -54,11 +54,23 @@ function Service:GET_TYPE_bridge()
 	})
 end
 
+function Service:GET_TYPE_table()
+	local handle = io.popen("ip -json route show table all")
+	local result = handle:read("*a")
+	handle:close()
+
+	local json = require("luci.jsonc")
+	local routes = json.parse(result)
+
+	return self:ResponseOK({
+		routes = routes
+	})
+end
+
 function Service:SetBridge()
 
 	local data = self.arguments.data
 	local name = data.name
-	local namelan = "lan"
 
 	if not name then
 		self:add_error(400, "Bridge name not specified", "name")
@@ -66,7 +78,11 @@ function Service:SetBridge()
 	end
 
 	if not uci:get("network", name) then
-		self:add_error(404, "Bridge device not found in UCI config", "name")
+		self:add_critical_error(
+			404,
+			"Bridge UCI section not found. Use UCI section name (example: br_lan).",
+			"name"
+		)
 		return
 	end
 
@@ -79,9 +95,17 @@ function Service:SetBridge()
 	end
 
 	if data.new_name then
-		uci:set("network", name, "name", data.new_name)
-		-- Change the lan config so it would point to the new name as well
-		uci:set("network", namelan, "device", data.new_name)
+		local old_device_name = uci:get("network", name, "name")
+
+		if old_device_name and old_device_name ~= data.new_name then
+			uci:set("network", name, "name", data.new_name)
+
+			uci:foreach("network", "interface", function(s)
+				if s.device == old_device_name then
+					uci:set("network", s[".name"], "device", data.new_name)
+				end
+			end)
+		end
 	end
 
 	uci:commit("network")
@@ -111,7 +135,7 @@ name.maxlength = 32
 local mtu = set_action:option("mtu")
 function mtu:validate(value)
 	local num = tonumber(value)
-	if not num or num < 500 or num > 9000 then
+	if not num or num < 576 or num > 9000 then
 		return false, "Invalid MTU value"
 	end
 	return true
