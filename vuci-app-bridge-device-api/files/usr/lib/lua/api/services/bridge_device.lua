@@ -56,14 +56,58 @@ end
 
 function Service:GET_TYPE_table()
 	local handle = io.popen("ip -json route show table all")
+	if not handle then
+		self:add_critical_error(500, "Could not execute ip route show command")
+		return self:ResponseError()
+	end
+
 	local result = handle:read("*a")
 	handle:close()
 
+	local tables = {}
 	local json = require("luci.jsonc")
 	local routes = json.parse(result)
 
+	for _, route in ipairs(routes) do
+		local table_name = route.table or "main"
+		if not tables[table_name] then
+			tables[table_name] = {}
+		end
+
+		table.insert(tables[table_name], {
+			dev = route.dev or "",
+			type = route.type or "",
+			protocol = route.protocol or "",
+			prefsrc = route.prefsrc or "",
+			dst = route.dst or "",
+			flags = route.flags or {},
+			metric = route.metric or -1,
+			pref = route.pref or "",
+			scope = route.scope or ""
+		})
+	end
 	return self:ResponseOK({
-		routes = routes
+		routes = tables
+	})
+end
+
+function Service:GET_TYPE_dhcp()
+	local conn = ubus.connect()
+	if not conn then
+		self:add_critical_error("Could not connect to ubus object")
+		return self:ResponseError()
+	end
+
+	local leases = conn:call("dnsmasq", "ipv4leases", {})
+	conn:close()
+
+	if not leases or not leases.leases then
+		self:add_error(404, "No DHCP leases found")
+		return self:ResponseError()
+	end
+
+	return self:ResponseOK({
+		leases = leases
 	})
 end
 
@@ -74,7 +118,7 @@ function Service:SetBridge()
 
 	if not name then
 		self:add_error(400, "Bridge name not specified", "name")
-		return
+		return self:ResponseError()
 	end
 
 	if not uci:get("network", name) then
@@ -83,7 +127,7 @@ function Service:SetBridge()
 			"Bridge UCI section not found. Use UCI section name (example: br_lan).",
 			"name"
 		)
-		return
+		return self:ResponseError()
 	end
 
 	if data.mtu then
