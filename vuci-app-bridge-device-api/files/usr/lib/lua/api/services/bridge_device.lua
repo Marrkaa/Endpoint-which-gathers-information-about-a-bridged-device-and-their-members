@@ -106,8 +106,24 @@ function Service:GET_TYPE_dhcp()
 		return self:ResponseError()
 	end
 
+	local static_leases = {}
+	uci:load("dhcp")
+
+	uci:foreach("dhcp", "host", function(s)
+		table.insert(static_leases, {
+			mac = s.mac,
+			ip = s.ip,
+			name = s.name or ""
+		})
+	end)
+
+	local combines_leases = {
+		dynamic = leases.leases,
+		static = static_leases
+	}
+
 	return self:ResponseOK({
-		leases = leases
+		leases = combines_leases
 	})
 end
 
